@@ -9,10 +9,11 @@ on:
   workflow_dispatch:
 
 jobs:
-  build_release_latex:
+  send_feushu_notification:
     runs-on: ubuntu-latest
 
     steps:
+      - uses: actions/checkout@v2
 
       - name: Notify
         env:
