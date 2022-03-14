@@ -21,8 +21,7 @@ jobs:
           INPUT_WEBHOOK: "${{ secrets.FEISHU_ROBOT_WEBHOOK_URL }}"
           INPUT_MESSAGE_TYPE: "post"
           INPUT_TITLE: "有代码合入"
-          INPUT_CONTENT: "from Github Action\n
-                        View in Repo: ${{ secrets.VIEW_GITHUB_REPOSITORY }}"
+          INPUT_CONTENT: "See change: ${{ secrets.VIEW_GITHUB_REPOSITORY }}, sent by Github Action."
         run: |
           wget -q https://github.com/xiachufang/actions-feishu/releases/download/${{ env.ACTIONS_FEISHU_TAG }}/linux-amd64-actions-feishu.tar.gz
           tar zxf linux-amd64-actions-feishu.tar.gz feishu
