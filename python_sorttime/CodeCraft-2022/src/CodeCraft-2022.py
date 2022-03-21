@@ -91,7 +91,7 @@ class DataPool:
         self.user_count = len(self.user_list)
         self.edge_count = len(self.edge_list)
         self.timestamp_count = len(list(self.timestamp_key_map.keys()))
-        self.free_count = self.timestamp_count * 0.05
+        self.free_count = int(self.timestamp_count * 0.05)
     
     def display_data(self):
         pass
@@ -186,24 +186,36 @@ class Scheduler:
             for user in list(self.demandPool.timeIndex_user_left_map[timeIndex].keys()):
                 if self.demandPool.timeIndex_user_left_map[timeIndex][user] <= 0:
                     continue
-                user_edge_list = self.dataPool.user_edge_list_map[user]
-                for edge in user_edge_list:
-                    if self.demandPool.timeIndex_edge_left_map[timeIndex][edge] <= 0:
-                        continue
-                    else:
-                        meetnum = 0
-                        if self.demandPool.timeIndex_edge_left_map[timeIndex][edge] < self.demandPool.timeIndex_user_left_map[timeIndex][user]:
-                            meetnum = self.demandPool.timeIndex_edge_left_map[timeIndex][edge]
-                            self.demandPool.timeIndex_edge_left_map[timeIndex][edge] = 0
-                            self.demandPool.timeIndex_user_left_map[timeIndex][user] -= meetnum
+                
+                edge_meetnum_map = {}
+                while self.demandPool.timeIndex_user_left_map[timeIndex][user] > 0:
+                    user_edge_list = self.dataPool.user_edge_list_map[user]
+                    for edge in user_edge_list:
+                        if self.demandPool.timeIndex_edge_left_map[timeIndex][edge] <= 0:
+                            continue
                         else:
-                            meetnum = self.demandPool.timeIndex_user_left_map[timeIndex][user]
-                            self.demandPool.timeIndex_edge_left_map[timeIndex][edge] -= meetnum
-                            self.demandPool.timeIndex_user_left_map[timeIndex][user] = 0
-                        
-                        self.res[timeIndex][user].append((edge, meetnum))
-                        if self.demandPool.timeIndex_user_left_map[timeIndex][user] == 0:
-                            break
+                            meetnum = 0
+                            if self.demandPool.timeIndex_edge_left_map[timeIndex][edge] < self.demandPool.timeIndex_user_left_map[timeIndex][user]:
+                                meetnum = self.demandPool.timeIndex_edge_left_map[timeIndex][edge]
+                                self.demandPool.timeIndex_edge_left_map[timeIndex][edge] = 0
+                                self.demandPool.timeIndex_user_left_map[timeIndex][user] -= meetnum
+                            else:
+                                meetnum = int(self.demandPool.timeIndex_user_left_map[timeIndex][user] * 0.99)
+                                if meetnum == 0:
+                                    meetnum = self.demandPool.timeIndex_user_left_map[timeIndex][user]
+                                self.demandPool.timeIndex_edge_left_map[timeIndex][edge] -= meetnum
+                                self.demandPool.timeIndex_user_left_map[timeIndex][user] = self.demandPool.timeIndex_user_left_map[timeIndex][user] - meetnum
+                            
+                            if edge not in list(edge_meetnum_map.keys()):
+                                edge_meetnum_map[edge] = meetnum
+                            else:
+                                edge_meetnum_map[edge] += meetnum
+                            # self.res[timeIndex][user].append((edge, meetnum))
+                            if self.demandPool.timeIndex_user_left_map[timeIndex][user] == 0:
+                                break
+                
+                for edge in list(edge_meetnum_map.keys()):
+                    self.res[timeIndex][user].append((edge, edge_meetnum_map[edge]))
         
     def output(self):
         # if not os.path.isdir("output"):
