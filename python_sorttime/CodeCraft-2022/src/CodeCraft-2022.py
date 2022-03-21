@@ -208,7 +208,7 @@ class Scheduler:
     def output(self):
         # if not os.path.isdir("output"):
         #     os.makedirs("output")
-        with open("CodeCraft-2022/src/output/solution.txt", mode="w", encoding="utf-8") as f:
+        with open("/output/solution.txt", mode="w", encoding="utf-8") as f:
             for timeIndex in list(self.res.keys()):
                 for user in list(self.res[timeIndex].keys()):
                     f.write(user + ":")
