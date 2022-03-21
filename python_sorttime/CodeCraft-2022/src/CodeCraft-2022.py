@@ -10,7 +10,7 @@ class DataPool:
     @staticmethod
     def read_config():
         with open("/data/config.ini", mode="r", encoding="utf-8") as f:
-            temp: list[str] = f.readlines()[1].replace("\r\n", "").split("=")
+            temp: list[str] = f.readlines()[1].replace("\n", "").split("=")
             max_qos: int = int(temp[1])
         f.close()
         return max_qos
@@ -18,7 +18,7 @@ class DataPool:
     def read_qos(self):
         with open("/data/qos.csv", mode="r", encoding="utf-8") as f:
             first_line: str = f.readline()
-            first_line_splited: list[str] = first_line.replace("\r\n", "").split(",")
+            first_line_splited: list[str] = first_line.replace("\n", "").split(",")
             user_list: list[str] = first_line_splited[1:]
             edge_list: list[str] = []
             user_edge_list_map: dict[str, list[str]] = {}
@@ -29,7 +29,7 @@ class DataPool:
                 user_edge_qos_map[user] = {}
 
             for line in f.readlines():
-                line_splited: list[str] = line.replace("\r\n", "").split(",")
+                line_splited: list[str] = line.replace("\n", "").split(",")
                 edge: str = line_splited[0]
                 edge_list.append(edge)
 
@@ -51,7 +51,7 @@ class DataPool:
         with open("/data/site_bandwidth.csv", mode="r", encoding="utf-8") as f:
             f.readline()
             for line in f.readlines():
-                line_splited: list[str] = line.replace("\r\n", "").split(",")
+                line_splited: list[str] = line.replace("\n", "").split(",")
                 edge_bandwidth_map[line_splited[0]] = int(line_splited[1])
         f.close()
 
@@ -70,7 +70,7 @@ class DataPool:
 
             row: int = 0
             for line in f.readlines():
-                line_splited: list[str] = line.replace("\r\n", "").split(",")
+                line_splited: list[str] = line.replace("\n", "").split(",")
                 timestamp_key_map[line_splited[0]] = row
                 time_demand_list_map[row] = []
 
@@ -221,7 +221,7 @@ class Scheduler:
                         if count < timeIndex_user_length:
                             f.write(",")
                     
-                    f.write("\r\n")
+                    f.write("\n")
         f.close()
 
 
