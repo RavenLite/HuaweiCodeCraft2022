@@ -92,6 +92,7 @@ class DataPool:
         self.edge_count = len(self.edge_list)
         self.timestamp_count = len(list(self.timestamp_key_map.keys()))
         self.free_count = int(self.timestamp_count * 0.05)
+        self.timestamp_edge_count = self.edge_count * self.timestamp_count
     
     def display_data(self):
         pass
@@ -143,6 +144,8 @@ class Scheduler:
 
         for timeIndex in range(self.dataPool.timestamp_count):
             for edge in self.dataPool.edge_list:
+                if self.demandPool.edge_free_left[edge] <= 0:
+                    continue
                 sum_demand = 0
                 for user in list(self.demandPool.timeIndex_user_left_map[timeIndex].keys()):
                     if self.dataPool.user_edge_qos_map[user][edge]:
@@ -153,11 +156,14 @@ class Scheduler:
         # logging.info("[Scheduling] timeIndex_edge_demand_list(%s) has %d elements, the first one is %s", type(self.timeIndex_edge_demand_list), len(self.timeIndex_edge_demand_list), self.timeIndex_edge_demand_list[0])
 
     def meet_demand_by_sorted_edge_timestamp(self):
+        meet_count = 0
+        hasLeftEdge = False
         for timeIndex_edge_demand in self.timeIndex_edge_demand_list:
             timeIndex = timeIndex_edge_demand[0]
             edge = timeIndex_edge_demand[1]
             if self.demandPool.edge_free_left[edge] <= 0:
                 continue
+            hasLeftEdge = True
             hasmeet = False
             for user in list(self.demandPool.timeIndex_user_left_map[timeIndex].keys()):
                 if self.dataPool.user_edge_qos_map[user][edge] and self.demandPool.timeIndex_user_left_map[timeIndex][user] > 0:
@@ -180,6 +186,13 @@ class Scheduler:
             
             if hasmeet:
                 self.demandPool.edge_free_left[edge] -= 1
+                meet_count += 1
+                if meet_count == 50:
+                    break
+
+        if hasLeftEdge:
+            self.sort_demand_by_edge_timestamp()
+            self.meet_demand_by_sorted_edge_timestamp()
     
     def meet_demand_left(self):
         for timeIndex in list(self.demandPool.timeIndex_user_left_map.keys()):
@@ -200,7 +213,7 @@ class Scheduler:
                                 self.demandPool.timeIndex_edge_left_map[timeIndex][edge] = 0
                                 self.demandPool.timeIndex_user_left_map[timeIndex][user] -= meetnum
                             else:
-                                meetnum = int(self.demandPool.timeIndex_user_left_map[timeIndex][user] * 0.99)
+                                meetnum = int(self.demandPool.timeIndex_user_left_map[timeIndex][user] * 0.5)
                                 if meetnum == 0:
                                     meetnum = self.demandPool.timeIndex_user_left_map[timeIndex][user]
                                 self.demandPool.timeIndex_edge_left_map[timeIndex][edge] -= meetnum
