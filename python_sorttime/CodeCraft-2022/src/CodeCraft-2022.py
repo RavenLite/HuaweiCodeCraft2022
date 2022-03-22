@@ -147,7 +147,7 @@ class Scheduler:
                 for user in list(self.demandPool.timeIndex_user_left_map[timeIndex].keys()):
                     if self.dataPool.user_edge_qos_map[user][edge]:
                         sum_demand += self.demandPool.timeIndex_user_left_map[timeIndex][user]
-                    self.timeIndex_edge_demand_list.append((timeIndex, edge, sum_demand))
+                self.timeIndex_edge_demand_list.append((timeIndex, edge, sum_demand))
 
         self.timeIndex_edge_demand_list = sorted(self.timeIndex_edge_demand_list, key=lambda tuple : tuple[2], reverse=True)
         # logging.info("[Scheduling] timeIndex_edge_demand_list(%s) has %d elements, the first one is %s", type(self.timeIndex_edge_demand_list), len(self.timeIndex_edge_demand_list), self.timeIndex_edge_demand_list[0])
