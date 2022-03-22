@@ -218,8 +218,6 @@ class Scheduler:
                     self.res[timeIndex][user].append((edge, edge_meetnum_map[edge]))
         
     def output(self):
-        # if not os.path.isdir("output"):
-        #     os.makedirs("output")
         with open("/output/solution.txt", mode="w", encoding="utf-8") as f:
             for timeIndex in list(self.res.keys()):
                 for user in list(self.res[timeIndex].keys()):
