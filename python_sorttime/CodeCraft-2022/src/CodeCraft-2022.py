@@ -92,7 +92,6 @@ class DataPool:
         self.edge_count = len(self.edge_list)
         self.timestamp_count = len(list(self.timestamp_key_map.keys()))
         self.free_count = int(self.timestamp_count * 0.05)
-        self.timestamp_edge_count = self.edge_count * self.timestamp_count
     
     def display_data(self):
         pass
@@ -187,10 +186,10 @@ class Scheduler:
             if hasmeet:
                 self.demandPool.edge_free_left[edge] -= 1
                 meet_count += 1
-                if meet_count == 50:
+                if meet_count == 100:
                     break
 
-        if hasLeftEdge:
+        if hasLeftEdge and meet_count == 100:
             self.sort_demand_by_edge_timestamp()
             self.meet_demand_by_sorted_edge_timestamp()
     
