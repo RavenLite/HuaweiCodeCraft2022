@@ -272,7 +272,7 @@ class Scheduler:
                                 self.demandPool.timeIndex_edge_left_map[timeIndex][edge] = 0
                                 self.demandPool.timeIndex_user_left_map[timeIndex][user] -= meetnum
                             else:
-                                meetnum = int(self.demandPool.timeIndex_user_left_map[timeIndex][user] * 0.5)
+                                meetnum = int(self.demandPool.timeIndex_user_left_map[timeIndex][user] * 0.6)
                                 if meetnum == 0:
                                     meetnum = self.demandPool.timeIndex_user_left_map[timeIndex][user]
                                 self.demandPool.timeIndex_edge_left_map[timeIndex][edge] -= meetnum
@@ -289,7 +289,60 @@ class Scheduler:
                 
                 for edge in list(edge_meetnum_map.keys()):
                     self.res[timeIndex][user].append((edge, edge_meetnum_map[edge]))
+
+    def optimize_backend(self):
+        edge_bandwidth_list_map = {}
+        edge_95th_bandwidth_map = {}
+        # TODO: manage in one place
+        timeIndex_list = list(self.demandPool.timeIndex_edge_left_map.keys())
+        for timeIndex in timeIndex_list:
+            for edge in self.demandPool.timeIndex_edge_left_map[timeIndex]:
+                if edge not in edge_bandwidth_list_map:
+                    edge_bandwidth_list_map[edge] = []
+                edge_bandwidth_list_map[edge].append(((self.dataPool.edge_bandwidth_map[edge] - self.demandPool.timeIndex_edge_left_map[timeIndex][edge]), timeIndex))
         
+        for edge in list(edge_bandwidth_list_map.keys()):
+            edge_bandwidth_list_map[edge] = sorted(edge_bandwidth_list_map[edge], key=lambda tuple : tuple[0], reverse=True)
+            edge_95th_bandwidth_map[edge] = edge_bandwidth_list_map[edge][self.dataPool.free_count][1]
+        
+        for timeIndex in list(self.res.keys()):
+            for user in list(self.res[timeIndex]):
+                need_swap: bool = False
+                edge_swap = ""
+                bandwidth_swap = 0
+                could_swap: nool = False
+                edge_swaped = ""
+
+                for edge_meetnum in self.res[timeIndex][user]:
+                    edge = edge_meetnum[0]
+                    meetnum = edge_meetnum[1]
+                    if edge_95th_bandwidth_map[edge] == timeIndex:
+                        need_swap = True
+                        edge_swap = edge
+                        bandwidth_swap = meetnum * 0.1
+                        break
+
+                if need_swap:
+                    for edge_meetnum in self.res[timeIndex][user]:
+                        edge = edge_meetnum[0]
+                        meetnum = edge_meetnum[1]
+                        if (self.dataPool.edge_bandwidth_map[edge] - self.demandPool.timeIndex_edge_left_map[timeIndex][edge] + bandwidth_swap) < edge_95th_bandwidth_map[edge] / 2:
+                            could_swap = True
+                            edge_swaped = edge
+                            break
+                
+                if could_swap:
+                    for index, edge_meetnum in enumerate(self.res[timeIndex][user]):
+                        if self.res[timeIndex][user][index][0] == edge_swap:
+                            temp_list = list(edge_meetnum)
+                            temp_list[1] -= bandwidth_swap
+                            edge_meetnum = tuple(temp_list)
+                        if self.res[timeIndex][user][index][0] == edge_swaped:
+                            temp_list = list(edge_meetnum)
+                            temp_list[1] += bandwidth_swap
+                            edge_meetnum = tuple(temp_list)
+
+
     def output(self):
         with open("/output/solution.txt", mode="w", encoding="utf-8") as f:
             for timeIndex in list(self.res.keys()):
@@ -317,6 +370,8 @@ class Scheduler:
         self.meet_demand_by_sorted_edge_timestamp()
         # phase 2
         self.meet_demand_left()
+        # phase 3
+        self.optimize_backend()
         # output
         self.output()
 
