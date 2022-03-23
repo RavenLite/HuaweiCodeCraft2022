@@ -1,9 +1,29 @@
 # import logging
-
 # logging.basicConfig(format='%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s', level=logging.INFO)
 
+"""
+This is the algorithm implement of Huawei CodeCraft 2022 contest, a edge-node bandwidth scheduling algorithm.
+Contest homepage: https://competition.huaweicloud.com/codecraft2022
+Remote repository: https://github.com/RavenLite/HuaweiCodeCraft2022
+
+Online judging environment:
+
+Hardware: 4U 4G, x86
+OS: ubuntu:18.04
+Python: Python3.7.3
+PyPy: pypy3.7-v7.3.7
+numpy: 1.19.4
+"""
 
 class DataPool:
+    """
+    Import data from files.
+
+    config.ini - qos limit (all time)
+    qos.csv - qos between user and edge (all time)
+    site_bandwidth.csv - max bandwith of each edge (all time)
+    demand.csv - demand of each user (by time)
+    """
     def __init__(self):
         self.read_data()
 
@@ -107,11 +127,17 @@ class DataPool:
 
 
 class DemandPool:
+    """
+    Initialize the left demand and resource.
+
+    timeIndex_user_left_map - user left demand (by time)
+    timeIndex_edge_left_map - edge left bandwidth (by time)
+    edge_free_left - edge left free count (large bandwidth over 95th sorted by time)
+    """
     def __init__(self, dataPool: DataPool):
         self.timeIndex_user_left_map = {}
         self.timeIndex_edge_left_map = {}
         self.edge_free_left = {}
-        self.timeIndex_user_list_sorted_map = {}
 
         for timeIndex in range(dataPool.timestamp_count):
             self.timeIndex_edge_left_map[timeIndex] = {}
@@ -129,10 +155,21 @@ class DemandPool:
 
 
 class Scheduler:
+    """
+    Arrange bandwidth and output results.
+
+    timeIndex_edge_demand_list - edge list sorted by the maxinum arrangeable bandwidth at some time
+    timeIndex_user_list_sorted_map - user list sorted by the number of available edge under qos
+
+    meet_demand_by_sorted_edge_timestamp() - phase 1: edge could arrange more, first
+    meet_demand_left() - phase 2: arrange left demand, by average
+    """
     def __init__(self, dataPool: DataPool, demandPool: DemandPool) -> None:
         self.dataPool = dataPool
         self.demandPool = demandPool
-        self.res = {}
+        self.timeIndex_edge_demand_list: list = []
+        self.timeIndex_user_list_sorted_map: dict = {}
+        self.res: dict = {}
 
         for timeIndex in range(self.dataPool.timestamp_count):
             self.res[timeIndex] = {}
@@ -140,7 +177,6 @@ class Scheduler:
                 self.res[timeIndex][user] = []
     
     def sort_demand_by_edge_timestamp(self):
-        self.timeIndex_edge_demand_list: list = []
         self.timeIndex_edge_demand_list.clear()
 
         for timeIndex in range(self.dataPool.timestamp_count):
@@ -169,7 +205,7 @@ class Scheduler:
             for user_edge_num_tuple in user_edge_num_tuple_list:
                 user_list_sorted.append(user_edge_num_tuple[0])
 
-            self.demandPool.timeIndex_user_list_sorted_map[timeIndex] = user_list_sorted
+            self.timeIndex_user_list_sorted_map[timeIndex] = user_list_sorted
 
     def meet_demand_by_sorted_edge_timestamp(self, meet_count_max=4):
         meet_count = 0
@@ -185,7 +221,7 @@ class Scheduler:
             hasLeftEdge = True
             hasmeet = False
             # user with fewer number of available edge under qos, fisrt be arranged
-            for user in self.demandPool.timeIndex_user_list_sorted_map[timeIndex]:
+            for user in self.timeIndex_user_list_sorted_map[timeIndex]:
                 if self.dataPool.user_edge_qos_map[user][edge] and self.demandPool.timeIndex_user_left_map[timeIndex][user] > 0:
                     meet_num = 0
 
@@ -217,15 +253,15 @@ class Scheduler:
     
     def meet_demand_left(self):
         for timeIndex in list(self.demandPool.timeIndex_user_left_map.keys()):
-            # user with fewer number of available edge nodes under qos, fisrt be arranged
-            for user in self.demandPool.timeIndex_user_list_sorted_map[timeIndex]:
+            # user with fewer number of available edge under qos, fisrt be arranged
+            for user in self.timeIndex_user_list_sorted_map[timeIndex]:
                 if self.demandPool.timeIndex_user_left_map[timeIndex][user] <= 0:
                     continue
                 edge_meetnum_map = {}
 
                 while self.demandPool.timeIndex_user_left_map[timeIndex][user] > 0:
                     user_edge_list = self.dataPool.user_edge_list_map[user]
-                    # TODO: edge with fewer stream at this time should provide more
+                    # TODO: edge with fewer bandwidth at this time should provide more
                     for edge in user_edge_list:
                         if self.demandPool.timeIndex_edge_left_map[timeIndex][edge] <= 0:
                             continue
@@ -273,17 +309,25 @@ class Scheduler:
 
 
     def schedule(self):
+        # prehandle
         self.sort_demand_by_edge_timestamp()
+        # prehandle
         self.sort_demand_by_user_timestamp()
+        # phase 1
         self.meet_demand_by_sorted_edge_timestamp()
+        # phase 2
         self.meet_demand_left()
+        # output
         self.output()
 
 
 def main():
+    # Import data from files
     dataPool = DataPool()
     dataPool.display_data()
+    # Initialize the left demand and resource
     demandPool = DemandPool(dataPool)
+    # Arrange bandwidth and output results
     Scheduler(dataPool, demandPool).schedule()
 
 
