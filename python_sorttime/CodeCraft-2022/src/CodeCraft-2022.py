@@ -301,7 +301,7 @@ class Scheduler:
                         if edge not in list(edge_meetnum_map.keys()):
                             edge_meetnum_map[edge] = meetnum
                         else:
-                            edge_meetnum_map[edge] += meetnum
+                            edge_meetnum_map[edge] += meetnum 
 
                         # if self.demandPool.timeIndex_user_left_map[timeIndex][user] == 0:
                         #     break
