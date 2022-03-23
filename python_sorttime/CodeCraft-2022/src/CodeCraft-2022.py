@@ -319,14 +319,14 @@ class Scheduler:
                     if edge_95th_bandwidth_map[edge] == timeIndex:
                         need_swap = True
                         edge_swap = edge
-                        bandwidth_swap = meetnum * 0.1
+                        bandwidth_swap = int(meetnum * 0.1)
                         break
 
                 if need_swap:
                     for edge_meetnum in self.res[timeIndex][user]:
                         edge = edge_meetnum[0]
                         meetnum = edge_meetnum[1]
-                        if (self.dataPool.edge_bandwidth_map[edge] - self.demandPool.timeIndex_edge_left_map[timeIndex][edge] + bandwidth_swap) < edge_95th_bandwidth_map[edge] / 2:
+                        if (meetnum + bandwidth_swap) < edge_95th_bandwidth_map[edge] / 2:
                             could_swap = True
                             edge_swaped = edge
                             break
@@ -336,11 +336,11 @@ class Scheduler:
                         if self.res[timeIndex][user][index][0] == edge_swap:
                             temp_list = list(edge_meetnum)
                             temp_list[1] -= bandwidth_swap
-                            edge_meetnum = tuple(temp_list)
+                            self.res[timeIndex][user][index] = tuple(temp_list)
                         if self.res[timeIndex][user][index][0] == edge_swaped:
                             temp_list = list(edge_meetnum)
                             temp_list[1] += bandwidth_swap
-                            edge_meetnum = tuple(temp_list)
+                            self.res[timeIndex][user][index] = tuple(temp_list)
 
 
     def output(self):
