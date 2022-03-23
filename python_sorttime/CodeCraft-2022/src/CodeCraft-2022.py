@@ -207,6 +207,18 @@ class Scheduler:
 
             self.timeIndex_user_list_sorted_map[timeIndex] = user_list_sorted
 
+    # method one: sort edges by amount of space already used
+    def sort_demand_by_user_edge_list(self, timeIndex: int, user_edge_list: list) -> list:
+        sorted_user_edge_list = []
+        for edge in user_edge_list:
+            if self.demandPool.timeIndex_edge_left_map[timeIndex][edge] <= 0:
+                continue
+            demand = self.dataPool.edge_bandwidth_map[edge] - self.demandPool.timeIndex_edge_left_map[timeIndex][
+                edge]
+            sorted_user_edge_list.append((edge, demand))
+        sorted_user_edge_list = sorted(sorted_user_edge_list, key=lambda tuple: tuple[1])
+        return sorted_user_edge_list
+
     def meet_demand_by_sorted_edge_timestamp(self, meet_count_max=4):
         meet_count = 0
         hasLeftEdge = False
@@ -259,33 +271,40 @@ class Scheduler:
                     continue
                 edge_meetnum_map = {}
 
+                count = 0
+                user_edge_list = []
                 while self.demandPool.timeIndex_user_left_map[timeIndex][user] > 0:
-                    user_edge_list = self.dataPool.user_edge_list_map[user]
+                    # user_edge_list = self.dataPool.user_edge_list_map[user]
+                    if count <= 0:
+                        user_edge_list = self.sort_demand_by_user_edge_list(timeIndex, self.dataPool.user_edge_list_map[user])
+                    edge = user_edge_list[count][0]
+                    count = (count + 1) % len(user_edge_list)
+
                     # TODO: edge with fewer bandwidth at this time should provide more
-                    for edge in user_edge_list:
-                        if self.demandPool.timeIndex_edge_left_map[timeIndex][edge] <= 0:
-                            continue
+                    # for edge in user_edge_list:
+                    if self.demandPool.timeIndex_edge_left_map[timeIndex][edge] <= 0:
+                        continue
+                    else:
+                        meetnum = 0
+                        if self.demandPool.timeIndex_edge_left_map[timeIndex][edge] < self.demandPool.timeIndex_user_left_map[timeIndex][user]:
+                            meetnum = self.demandPool.timeIndex_edge_left_map[timeIndex][edge]
+                            self.demandPool.timeIndex_edge_left_map[timeIndex][edge] = 0
+                            self.demandPool.timeIndex_user_left_map[timeIndex][user] -= meetnum
                         else:
-                            meetnum = 0
-                            if self.demandPool.timeIndex_edge_left_map[timeIndex][edge] < self.demandPool.timeIndex_user_left_map[timeIndex][user]:
-                                meetnum = self.demandPool.timeIndex_edge_left_map[timeIndex][edge]
-                                self.demandPool.timeIndex_edge_left_map[timeIndex][edge] = 0
-                                self.demandPool.timeIndex_user_left_map[timeIndex][user] -= meetnum
-                            else:
-                                meetnum = int(self.demandPool.timeIndex_user_left_map[timeIndex][user] * 0.5)
-                                if meetnum == 0:
-                                    meetnum = self.demandPool.timeIndex_user_left_map[timeIndex][user]
-                                self.demandPool.timeIndex_edge_left_map[timeIndex][edge] -= meetnum
-                                self.demandPool.timeIndex_user_left_map[timeIndex][user] = self.demandPool.timeIndex_user_left_map[timeIndex][user] - meetnum
-                            
-                            # avoid repeated addition from the same edge
-                            if edge not in list(edge_meetnum_map.keys()):
-                                edge_meetnum_map[edge] = meetnum
-                            else:
-                                edge_meetnum_map[edge] += meetnum
-                            
-                            if self.demandPool.timeIndex_user_left_map[timeIndex][user] == 0:
-                                break
+                            meetnum = int(self.demandPool.timeIndex_user_left_map[timeIndex][user] * 0.5)
+                            if meetnum == 0:
+                                meetnum = self.demandPool.timeIndex_user_left_map[timeIndex][user]
+                            self.demandPool.timeIndex_edge_left_map[timeIndex][edge] -= meetnum
+                            self.demandPool.timeIndex_user_left_map[timeIndex][user] = self.demandPool.timeIndex_user_left_map[timeIndex][user] - meetnum
+
+                        # avoid repeated addition from the same edge
+                        if edge not in list(edge_meetnum_map.keys()):
+                            edge_meetnum_map[edge] = meetnum
+                        else:
+                            edge_meetnum_map[edge] += meetnum
+
+                        # if self.demandPool.timeIndex_user_left_map[timeIndex][user] == 0:
+                        #     break
                 
                 for edge in list(edge_meetnum_map.keys()):
                     self.res[timeIndex][user].append((edge, edge_meetnum_map[edge]))
