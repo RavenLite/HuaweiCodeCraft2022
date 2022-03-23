@@ -111,6 +111,7 @@ class DemandPool:
         self.timeIndex_user_left_map = {}
         self.timeIndex_edge_left_map = {}
         self.edge_free_left = {}
+        self.timeIndex_user_list_sorted_map = {}
 
         for timeIndex in range(dataPool.timestamp_count):
             self.timeIndex_edge_left_map[timeIndex] = {}
@@ -140,6 +141,7 @@ class Scheduler:
     
     def sort_demand_by_edge_timestamp(self):
         self.timeIndex_edge_demand_list: list = []
+        self.timeIndex_edge_demand_list.clear()
 
         for timeIndex in range(self.dataPool.timestamp_count):
             for edge in self.dataPool.edge_list:
@@ -154,17 +156,36 @@ class Scheduler:
         self.timeIndex_edge_demand_list = sorted(self.timeIndex_edge_demand_list, key=lambda tuple : tuple[2], reverse=True)
         # logging.info("[Scheduling] timeIndex_edge_demand_list(%s) has %d elements, the first one is %s", type(self.timeIndex_edge_demand_list), len(self.timeIndex_edge_demand_list), self.timeIndex_edge_demand_list[0])
 
-    def meet_demand_by_sorted_edge_timestamp(self):
+    def sort_demand_by_user_timestamp(self):
+        for timeIndex in list(self.demandPool.timeIndex_edge_left_map.keys()):
+            user_list: list = list(self.demandPool.timeIndex_user_left_map[timeIndex].keys())
+            user_edge_num_tuple_list: list = []
+
+            for user in user_list:
+                user_edge_num_tuple_list.append((user, len(self.dataPool.user_edge_list_map[user])))
+
+            user_edge_num_tuple_list = sorted(user_edge_num_tuple_list, key=lambda tuple : tuple[1])
+            user_list_sorted = []
+            for user_edge_num_tuple in user_edge_num_tuple_list:
+                user_list_sorted.append(user_edge_num_tuple[0])
+
+            self.demandPool.timeIndex_user_list_sorted_map[timeIndex] = user_list_sorted
+
+    def meet_demand_by_sorted_edge_timestamp(self, meet_count_max=4):
         meet_count = 0
         hasLeftEdge = False
+        # edge could provide most at some time, first
         for timeIndex_edge_demand in self.timeIndex_edge_demand_list:
             timeIndex = timeIndex_edge_demand[0]
             edge = timeIndex_edge_demand[1]
+
             if self.demandPool.edge_free_left[edge] <= 0:
                 continue
+
             hasLeftEdge = True
             hasmeet = False
-            for user in list(self.demandPool.timeIndex_user_left_map[timeIndex].keys()):
+            # user with fewer number of available edge under qos, fisrt be arranged
+            for user in self.demandPool.timeIndex_user_list_sorted_map[timeIndex]:
                 if self.dataPool.user_edge_qos_map[user][edge] and self.demandPool.timeIndex_user_left_map[timeIndex][user] > 0:
                     meet_num = 0
 
@@ -185,23 +206,26 @@ class Scheduler:
             
             if hasmeet:
                 self.demandPool.edge_free_left[edge] -= 1
-                meet_count += 1
-                if meet_count == 100:
-                    break
+                # simple dynamic sort: from here to the end of this function
+        #         meet_count += 1
+        #         if meet_count == meet_count_max:
+        #             break
 
-        if hasLeftEdge and meet_count == 100:
-            self.sort_demand_by_edge_timestamp()
-            self.meet_demand_by_sorted_edge_timestamp()
+        # if hasLeftEdge and meet_count == meet_count_max:
+        #     self.sort_demand_by_edge_timestamp()
+        #     self.meet_demand_by_sorted_edge_timestamp(meet_count_max * 4)
     
     def meet_demand_left(self):
         for timeIndex in list(self.demandPool.timeIndex_user_left_map.keys()):
-            for user in list(self.demandPool.timeIndex_user_left_map[timeIndex].keys()):
+            # user with fewer number of available edge nodes under qos, fisrt be arranged
+            for user in self.demandPool.timeIndex_user_list_sorted_map[timeIndex]:
                 if self.demandPool.timeIndex_user_left_map[timeIndex][user] <= 0:
                     continue
-                
                 edge_meetnum_map = {}
+
                 while self.demandPool.timeIndex_user_left_map[timeIndex][user] > 0:
                     user_edge_list = self.dataPool.user_edge_list_map[user]
+                    # TODO: edge with fewer stream at this time should provide more
                     for edge in user_edge_list:
                         if self.demandPool.timeIndex_edge_left_map[timeIndex][edge] <= 0:
                             continue
@@ -218,11 +242,12 @@ class Scheduler:
                                 self.demandPool.timeIndex_edge_left_map[timeIndex][edge] -= meetnum
                                 self.demandPool.timeIndex_user_left_map[timeIndex][user] = self.demandPool.timeIndex_user_left_map[timeIndex][user] - meetnum
                             
+                            # avoid repeated addition from the same edge
                             if edge not in list(edge_meetnum_map.keys()):
                                 edge_meetnum_map[edge] = meetnum
                             else:
                                 edge_meetnum_map[edge] += meetnum
-                            # self.res[timeIndex][user].append((edge, meetnum))
+                            
                             if self.demandPool.timeIndex_user_left_map[timeIndex][user] == 0:
                                 break
                 
@@ -249,6 +274,7 @@ class Scheduler:
 
     def schedule(self):
         self.sort_demand_by_edge_timestamp()
+        self.sort_demand_by_user_timestamp()
         self.meet_demand_by_sorted_edge_timestamp()
         self.meet_demand_left()
         self.output()
