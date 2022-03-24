@@ -318,7 +318,7 @@ class Scheduler:
                 for edge_meetnum in self.res[timeIndex][user]:
                     edge = edge_meetnum[0]
                     meetnum = edge_meetnum[1]
-                    if edge_95th_timestamp_map[edge] == timeIndex:
+                    if edge_95th_timestamp_map[edge] == timeIndex and meetnum > int(self.dataPool.edge_bandwidth_map[edge] * 0.1):
                         need_swap = True
                         edge_swap = edge
                         bandwidth_swap = int(meetnum * 0.1)
@@ -332,7 +332,7 @@ class Scheduler:
                         if edge == edge_swap:
                             continue
                         # select the edge with enough space
-                        if (meetnum + bandwidth_swap) < edge_95th_bandwidth_map[edge] / 2:
+                        if (meetnum + bandwidth_swap) < edge_95th_bandwidth_map[edge] / 2 and self.demandPool.timeIndex_edge_left_map[timeIndex][edge] > bandwidth_swap:
                             could_swap = True
                             edge_swaped = edge
                             break
@@ -343,10 +343,12 @@ class Scheduler:
                             temp_list = list(edge_meetnum)
                             temp_list[1] -= bandwidth_swap
                             self.res[timeIndex][user][index] = tuple(temp_list)
+                            self.demandPool.timeIndex_edge_left_map[timeIndex][edge_swap] += bandwidth_swap
                         if self.res[timeIndex][user][index][0] == edge_swaped:
                             temp_list = list(edge_meetnum)
                             temp_list[1] += bandwidth_swap
                             self.res[timeIndex][user][index] = tuple(temp_list)
+                            self.demandPool.timeIndex_edge_left_map[timeIndex][edge_swaped] -= bandwidth_swap
 
 
     def output(self):
@@ -377,7 +379,8 @@ class Scheduler:
         # phase 2
         self.meet_demand_left()
         # phase 3
-        self.optimize_backend()
+        for index in range(200):
+            self.optimize_backend()
         # output
         self.output()
 
