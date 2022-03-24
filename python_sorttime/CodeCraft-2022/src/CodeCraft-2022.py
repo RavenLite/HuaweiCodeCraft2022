@@ -321,7 +321,7 @@ class Scheduler:
                     if edge_95th_timestamp_map[edge] == timeIndex and meetnum > int(self.dataPool.edge_bandwidth_map[edge] * 0.1):
                         need_swap = True
                         edge_swap = edge
-                        bandwidth_swap = int(meetnum * 0.1)
+                        bandwidth_swap = int(meetnum * 0.2)
                         break
 
                 if need_swap:
@@ -332,7 +332,7 @@ class Scheduler:
                         if edge == edge_swap:
                             continue
                         # select the edge with enough space
-                        if (meetnum + bandwidth_swap) < edge_95th_bandwidth_map[edge] / 2 and self.demandPool.timeIndex_edge_left_map[timeIndex][edge] > bandwidth_swap:
+                        if (meetnum + bandwidth_swap) < edge_95th_bandwidth_map[edge] * 0.8 and self.demandPool.timeIndex_edge_left_map[timeIndex][edge] > bandwidth_swap:
                             could_swap = True
                             edge_swaped = edge
                             break
@@ -379,7 +379,7 @@ class Scheduler:
         # phase 2
         self.meet_demand_left()
         # phase 3
-        for index in range(200):
+        for index in range(100):
             self.optimize_backend()
         # output
         self.output()
