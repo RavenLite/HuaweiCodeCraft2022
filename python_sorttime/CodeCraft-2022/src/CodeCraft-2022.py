@@ -293,6 +293,7 @@ class Scheduler:
     def optimize_backend(self):
         edge_bandwidth_list_map = {}
         edge_95th_bandwidth_map = {}
+        edge_95th_timestamp_map = {}
         # TODO: manage in one place
         timeIndex_list = list(self.demandPool.timeIndex_edge_left_map.keys())
         for timeIndex in timeIndex_list:
@@ -303,20 +304,21 @@ class Scheduler:
         
         for edge in list(edge_bandwidth_list_map.keys()):
             edge_bandwidth_list_map[edge] = sorted(edge_bandwidth_list_map[edge], key=lambda tuple : tuple[0], reverse=True)
-            edge_95th_bandwidth_map[edge] = edge_bandwidth_list_map[edge][self.dataPool.free_count][1]
+            edge_95th_bandwidth_map[edge] = edge_bandwidth_list_map[edge][self.dataPool.free_count][0]
+            edge_95th_timestamp_map[edge] = edge_bandwidth_list_map[edge][self.dataPool.free_count][1]
         
         for timeIndex in list(self.res.keys()):
             for user in list(self.res[timeIndex]):
                 need_swap: bool = False
                 edge_swap = ""
                 bandwidth_swap = 0
-                could_swap: nool = False
+                could_swap: bool = False
                 edge_swaped = ""
 
                 for edge_meetnum in self.res[timeIndex][user]:
                     edge = edge_meetnum[0]
                     meetnum = edge_meetnum[1]
-                    if edge_95th_bandwidth_map[edge] == timeIndex:
+                    if edge_95th_timestamp_map[edge] == timeIndex:
                         need_swap = True
                         edge_swap = edge
                         bandwidth_swap = int(meetnum * 0.1)
@@ -326,6 +328,10 @@ class Scheduler:
                     for edge_meetnum in self.res[timeIndex][user]:
                         edge = edge_meetnum[0]
                         meetnum = edge_meetnum[1]
+                        # keep not same edge
+                        if edge == edge_swap:
+                            continue
+                        # select the edge with enough space
                         if (meetnum + bandwidth_swap) < edge_95th_bandwidth_map[edge] / 2:
                             could_swap = True
                             edge_swaped = edge
