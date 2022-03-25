@@ -1,147 +1,87 @@
-<<<<<<< HEAD
-#include <iostream>
-int main() {
-    std::cout << "Hello world!"<<std::endl;
-	return 0;
-}
-=======
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <iterator>
 #include <string>
-#include <map>
-#include <unordered_map>
-static std::string CONFIG_PATH="../data/config.ini";
-static std::string DATA_PATH="../data/"; 
-static std::string OUTPUT_PATH="../output/solution.txt";
+#include <algorithm>
+#include <queue>
+
+#define TICK_MAX 8930
+#define CMR_MAX 40
+#define EDGE_MAX 140
+#define LINK_MAX 4730
+
+using namespace std;
+
+static string CONFIG_PATH="/data/config.ini";
+static string DATA_PATH="/data/"; 
+static string OUTPUT_PATH="/output/solution.txt";
 int QOS_LIMIT; // 最大延迟
 
-// 主需要获取每个时刻所有的需求序列及其通过索引能够确定相应的客户节点的名字即可。
-std::vector<std::string> userName;//用户节点的名字，可以查找第i个用户的名字
-std::vector<int> siteMaxDemand;//边缘节点的最大带宽
-std::map<std::string, std::vector<int>> demand;//每个时刻的带宽需求序列
-std::map<std::string, std::vector<int>> siteToUserTime;//边缘节点到用户的时延，超过时延上限的设置为-1
+struct Customer;
+struct Edge;
+struct Link;
 
-// Qos Table
-struct QosTable {
-    std::unordered_map<std::string,int> site;//网站对应的索引
-    std::unordered_map<std::string, int> client;//客户节点对应的索引
-    std::unordered_map<int, int> qos;//每个网站及其索引对应的延迟
-    /**
-     * 查找site name对应的索引
-     */
-    int findSiteIndex(const std::string& siteName)
-    {
-        // TODO
-    }
-    /**
-     * 查找client对应的索引
-     */
-    inline int findClientIndex(const std::string& clientName)
-    {
-        // TODO
-    }
-    /**
-     * 根据索引查找Qos
-     */
-    inline int findQos(int siteIndex, int clientIndex)
-    {
-        // TODO
-    }
-    /**
-     * 添加新的site索引对
-     */
-    void addSite(const std::string& siteName,int index)
-    {
-        // TODO
-    }
-    /**
-     * 添加新的client索引对
-     */
-    void addClient(const std::string& siteName,int index)
-    {
-        // TODO
-    }
-    /**
-     * 判断该qos是否满足延迟要求
-     */
-    inline bool ifSatQos(int qos) {
-        if (qos <= QOS_LIMIT) {
-            return true;
-        } else {
-            return false;
-        }
-    }
+// 客户节点结构体
+struct Customer {
+    string id;
+    int demand[TICK_MAX]; // 每时刻的剩余带宽需求
+    int linkNum; // 相连的链路数量
+    Link *links[EDGE_MAX]; // 相连的链路的指针
 };
 
-QosTable qt;
+// 边缘节点结构体
+struct Edge {
+    string id;
+    int limit; // 带宽上限
+    int linkNum; // 相连的链路数量
+    Link *links[CMR_MAX]; // 相连的链路的指针
+    int bandwidth[TICK_MAX] = {}; // 每时刻分配的总带宽
+    bool isFree[TICK_MAX] = {}; // 每时刻分配的带宽是否可视为能无代价分完
+};
+
+// 链路结构体
+struct Link {
+    Customer *cmr; // 相连的客户节点
+    Edge *edge; // 相连的边缘节点
+    int qos; // 时延
+    int bandwidth[TICK_MAX] = {}; // 每时刻分配的带宽
+};
+
+Customer cmrs[CMR_MAX];
+Edge edges[EDGE_MAX];
+int cmrNum; // 客户节点数
+int edgeNum; // 边缘节点数
+int tickNum; // 总时刻数
+int fullNum; // 比95百分位高的时刻数
+int demands[TICK_MAX] = {}; // 每个时刻客户的总需求
 
 /**
  * String splict by delimiters
  */
-static std::vector<std::string> split(const std::string &s, const std::string &delimiters = ",") {
-    std::vector<std::string> tokens;
-    std::size_t lastPos = s.find_first_not_of(delimiters,0);
-    std::size_t pos = s.find_first_of(delimiters,lastPos);
-    while (pos != std::string::npos || lastPos != std::string::npos) {
-        tokens.emplace_back(s.substr(lastPos, pos - lastPos));
-        lastPos = s.find_first_not_of(delimiters, pos);
-        pos = s.find_first_of(delimiters, lastPos);
+static vector<string> split(const string &s, const string &delimiters = ",") {
+    vector<string> tokens;
+    size_t start = 0;
+    size_t end = s.find_first_of(delimiters, start);
+    while (end != string::npos) {
+        tokens.emplace_back(s.substr(start, end - start));
+        start = end + 1;
+        end = s.find_first_of(delimiters, start);
     }
+    tokens.emplace_back(s.substr(start));
     return tokens;
 }
-
-static std::pair<std::string,std::vector<int> > split2(const std::string& s, const std::string &delimiters = ",") {
-    std::string str;
-    std::vector<int> tokens;
-    std::size_t lastPos = s.find_first_not_of(delimiters,0);//查找第一个非,
-    std::size_t pos = s.find_first_of(delimiters,lastPos);//查找第一个,
-    str = s.substr(lastPos, pos - lastPos);
-    lastPos = s.find_first_not_of(delimiters, pos);
-    pos = s.find_first_of(delimiters, lastPos);
-    while (pos != std::string::npos || lastPos != std::string::npos) {
-        tokens.emplace_back(atoi(s.substr(lastPos, pos - lastPos).c_str()));
-        lastPos = s.find_first_not_of(delimiters, pos);
-        pos = s.find_first_of(delimiters, lastPos);
-    }
-    return {str,tokens};
-}
-
-static std::pair<std::string, std::vector<int>> split3(const std::string& s, const std::string& delimiters = ",") {
-    std::string str;
-    std::vector<int> tokens;
-    std::size_t lastPos = s.find_first_not_of(delimiters,0);//查找第一个非,
-    std::size_t pos = s.find_first_of(delimiters,lastPos);//查找第一个,
-    str = s.substr(lastPos, pos - lastPos);
-    lastPos = s.find_first_not_of(delimiters, pos);
-    pos = s.find_first_of(delimiters, lastPos);
-    while (pos != std::string::npos || lastPos != std::string::npos) {
-        int val = atoi(s.substr(lastPos, pos - lastPos).c_str());
-        if (qt.ifSatQos(val)) {
-            tokens.emplace_back(val);
-        } else {
-            tokens.emplace_back(-1);
-        }
-        lastPos = s.find_first_not_of(delimiters, pos);
-        pos = s.find_first_of(delimiters, lastPos);
-    }
-    return {str,tokens};
-}
-
 
 /**
  * read Config
  */
 void readConf(){
-    std::ifstream config;
+    ifstream config;
     config.open(CONFIG_PATH);
-    std::string tmp_line;
+    string tmp_line;
     getline(config,tmp_line);
     getline(config,tmp_line);
-    // std::cout << tmp_line << std::endl;
-    QOS_LIMIT = atoi(std::string(tmp_line.begin() + tmp_line.find('=')+1, tmp_line.end()).c_str());
-    // std::cout << QOS_LIMIT << std::endl;
+    QOS_LIMIT = atoi(string(tmp_line.begin() + tmp_line.find('=')+1, tmp_line.end()).c_str());
     // TODO
     config.close();
 }
@@ -149,64 +89,84 @@ void readConf(){
  * read Data
  */
 void readData(){
-    std::vector<std::string> tmp_vec;
-    std::ifstream data;
-    std::string tmp_line;
-
-    data.open(DATA_PATH+"qos.csv");//客户节点和边缘节点的Qos
-    getline(data, tmp_line);
-    while (getline(data, tmp_line)) {
-        siteToUserTime.insert(split3(tmp_line, ","));
-    }
-    // for (auto &p:siteToUserTime) {
-    //     std::cout<<p.first<<":";
-    //     for(auto &num:p.second) {
-    //         std::cout<<num<<",";
-    //     }
-    //     std::cout<<std::endl;
-    // }
-    // system("pause");
-    data.close();
-    data.clear();
+    vector<string> tmp_vec;
+    ifstream data;
+    string tmp_line;
 
     data.open(DATA_PATH+"demand.csv");//客户节点在不同时刻的带宽需求信息
     getline(data, tmp_line);
     tmp_vec = split(tmp_line, ",");
-    userName = std::vector<std::string>(std::make_move_iterator(tmp_vec.begin() + 1), std::make_move_iterator(tmp_vec.end()));
-    // for(auto &str:userName)
-    //     std::cout << str << "\n";
-    // system("pause");
-    while(getline(data,tmp_line)){
-        demand.insert(split2(tmp_line, ","));
+    cmrNum = tmp_vec.size() - 1;
+    for (int i = 1; i <= cmrNum; i++) {
+        cmrs[i-1].id = tmp_vec[i];
+        cmrs[i-1].linkNum = 0;
     }
-    // for (auto &p:demand) {
-    //     std::cout<<p.first<<":";
-    //     for(auto &num:p.second) {
-    //         std::cout<<num<<",";
-    //     }
-    //     std::cout<<std::endl;
-    // }
-    // system("pause");
+    tickNum = 0;
+    while(getline(data,tmp_line)){
+        tmp_vec = split(tmp_line, ",");
+        for (int i = 1; i <= cmrNum; i++) {
+            cmrs[i-1].demand[tickNum] = stoi(tmp_vec[i]);
+        }
+        tickNum++;
+    }
+    fullNum = tickNum / 20;
+    data.close();
+    data.clear();
+    
+    data.open(DATA_PATH+"site_bandwidth.csv");//边缘节点列表以及每个边缘节点的带宽上限
+    getline(data,tmp_line);
+    edgeNum = 0;
+    while(getline(data,tmp_line)){
+        tmp_vec = split(tmp_line, ",");
+        edges[edgeNum].id = tmp_vec[0];
+        edges[edgeNum].linkNum = 0;
+        edges[edgeNum++].limit = stoi(tmp_vec[1]);
+    }
     data.close();
     data.clear();
 
-    data.open(DATA_PATH+"site_bandwidth.csv");//边缘节点列表以及每个边缘节点的带宽上限
-    getline(data,tmp_line);
-    while(getline(data,tmp_line)){
+    data.open(DATA_PATH+"qos.csv");//客户节点和边缘节点的Qos
+    getline(data, tmp_line);
+    int pt = 0;
+    while (getline(data, tmp_line)) {
         tmp_vec = split(tmp_line, ",");
-        siteMaxDemand.push_back(std::stoi(tmp_vec[1]));
+        for (int i = 1; i <= cmrNum; i++) {
+            int qos = stoi(tmp_vec[i]);
+            if (qos < QOS_LIMIT) {
+                Link *link = new Link();
+                link->cmr = cmrs + i - 1;
+                link->edge = edges + pt;
+                link->qos = qos;
+                cmrs[i-1].links[cmrs[i-1].linkNum++] = link;
+                edges[pt].links[edges[pt].linkNum++] = link;
+            }
+        }
+        pt++;
     }
-    // for (auto &p:siteMaxDemand) {
-    //     std::cout<<p<<std::endl;
-    // }
-    // system("pause");
     data.close();
     data.clear();
+
 }
 
 void Output(){
-    // TODO 
-
+    ofstream output;
+    output.open(OUTPUT_PATH);
+    bool isFirstLine = true;
+    for (int t = 0; t < tickNum; t++) {
+        for (int c = 0; c < cmrNum; c++) {
+            if (!isFirstLine) output << endl;
+            else isFirstLine = false;
+            output << cmrs[c].id << ":";
+            bool isFirst = true;
+            for (int l = 0; l < cmrs[c].linkNum; l++) {
+                if (cmrs[c].links[l]->bandwidth[t] > 0) {
+                    if (!isFirst) output << ",";
+                    else isFirst = false;
+                    output << "<" << cmrs[c].links[l]->edge->id << "," << cmrs[c].links[l]->bandwidth[t] << ">";
+                }
+            }
+        }
+    }
 }
 /**
  * 
@@ -217,9 +177,203 @@ void testIO()
     readData();
 }
 
+void firstStep() {
+    int fullCnt[EDGE_MAX] = {}; // 边缘节点使用掉的免费次数
+    int edgeLimitDs[EDGE_MAX]; // 边缘节点序号按带宽上限降序排序
+    int *edgeLimitDsPt = edgeLimitDs; // 边缘节点序号按带宽上限降序排序的指针
+    int tickDemandDs[TICK_MAX]; // 时刻按总需求降序排序
+    int *tickDemandDsPt = tickDemandDs; // 时刻按总需求降序排序的指针
+    int tickDemands[TICK_MAX] = {}; // 每时刻的总需求
+
+    // 按总需求量降序排序时刻，按带宽上限降序排序边缘节点
+    for (int t = 0; t < tickNum; t++) {
+        tickDemandDs[t] = t;
+        for (int i = 0; i < cmrNum; i++) tickDemands[t] += cmrs[i].demand[t];
+    }
+    sort(tickDemandDs, tickDemandDs+tickNum, [&tickDemands](int &a, int &b){return tickDemands[a] > tickDemands[b];});
+    for (int j = 0; j < edgeNum; j++) edgeLimitDs[j] = j;
+    sort(edgeLimitDs, edgeLimitDs+edgeNum, [](int &a, int &b){return edges[a].limit > edges[b].limit;});
+    
+    // 优先为总需求量最大的时刻分配带宽上限不超过剩余需求量且最大的边缘节点的全部带宽
+    while (edgeLimitDsPt != edgeLimitDs + edgeNum && tickDemandDsPt != tickDemandDs + tickNum) {
+        int demand = tickDemands[*tickDemandDsPt];
+        bool flag = false;
+        for (int *p = edgeLimitDsPt; p != edgeLimitDs + edgeNum; p++) {
+            if (fullCnt[*p] < fullNum && edges[*p].limit <= demand) {
+                edges[*p].isFree[*tickDemandDsPt] = true;
+                tickDemands[*tickDemandDsPt] -= edges[*p].limit;
+                fullCnt[*p]++;
+                flag = true;
+                break;
+            }
+        }
+        if (fullCnt[*edgeLimitDsPt] >= fullNum) edgeLimitDsPt++;
+        if (!flag) tickDemandDsPt++;
+    }
+}
+
+void secondStepWhen(int tick) {
+    vector<int> frees; // 免费边缘节点向量
+    Customer *cmrLinkNumAs[CMR_MAX]; // 客户节点指针数组，按照客户可连接的边缘节点数量排序
+    // 用边缘节点填满全部客户节点
+    for (int j = 0; j < edgeNum; j++) {
+        if (edges[j].isFree[tick]) frees.emplace_back(j);
+    }
+    for (int c = 0; c < cmrNum; c++) cmrLinkNumAs[c] = cmrs + c;
+    sort(cmrLinkNumAs, cmrLinkNumAs+cmrNum, [](Customer *a, Customer *b){return a->linkNum < b->linkNum;});
+
+    for (int cp = 0; cp < cmrNum; cp++) {
+        Customer *cmr = cmrLinkNumAs[cp];
+        for (int l = 0; l < cmr->linkNum && cmr->demand[tick] > 0; l++) {
+            Edge *edge = cmr->links[l]->edge;
+            int edgeBandwidthLeft = edge->limit - edge->bandwidth[tick];
+            if (edgeBandwidthLeft >= cmr->demand[tick]) {
+                cmr->links[l]->bandwidth[tick] = cmr->demand[tick];
+                edge->bandwidth[tick] += cmr->demand[tick];
+                cmr->demand[tick] = 0;
+            } else {
+                cmr->links[l]->bandwidth[tick] = edgeBandwidthLeft;
+                edge->bandwidth[tick] = edge->limit;
+                cmr->demand[tick] -= edgeBandwidthLeft;
+            }
+        }
+    }
+
+    // for (int j = 0; j < edgeNum; j++) {
+    //     if (edges[j].isFree[tick]) frees.emplace_back(j);
+    //     for (int l = 0; l < edges[j].linkNum; l++) {
+    //         Customer *cmr = edges[j].links[l]->cmr;
+    //         if (cmr->demand[tick] == 0) continue;
+    //         if (cmr->demand[tick] < edges[j].limit - edges[j].bandwidth[tick]) {
+    //             edges[j].links[l]->bandwidth[tick] = cmr->demand[tick];
+    //             edges[j].bandwidth[tick] += cmr->demand[tick];
+    //             cmr->demand[tick] = 0;
+    //         } else {
+    //             edges[j].links[l]->bandwidth[tick] = edges[j].limit - edges[j].bandwidth[tick];
+    //             cmr->demand[tick] -= edges[j].limit - edges[j].bandwidth[tick];
+    //             edges->bandwidth[tick] = edges[j].limit;
+    //             break;
+    //         }
+    //     }
+    // }
+
+    // // 第二步，用免费边缘节点填满未满足客户
+    // sort(frees.begin(), frees.end(), [](int &a, int &b){return edges[a].limit > edges[b].limit;});
+    // for (auto it = frees.begin(); it != frees.end(); it++) {
+    //     int j = *it;
+    //     for (int l = 0; l < edges[j].linkNum; l++) {
+    //         Customer *cmr = edges[j].links[l]->cmr;
+    //         if (cmr->demand[tick] == 0) continue;
+    //         if (cmr->demand[tick] < edges[j].limit - edges[j].bandwidth[tick]) {
+    //             edges[j].links[l]->bandwidth[tick] = cmr->demand[tick];
+    //             edges[j].bandwidth[tick] += cmr->demand[tick];
+    //             cmr->demand[tick] = 0;
+    //         } else {
+    //             edges[j].links[l]->bandwidth[tick] = edges[j].limit - edges[j].bandwidth[tick];
+    //             cmr->demand[tick] -= edges[j].limit - edges[j].bandwidth[tick];
+    //             edges->bandwidth[tick] = edges[j].limit;
+    //             break;
+    //         }
+    //     }
+    // }
+
+    // 用免费边缘节点剩余带宽分担非免费边缘节点的带宽
+    sort(frees.begin(), frees.end(), [&tick](int &a, int &b){return edges[a].limit - edges[a].bandwidth[tick] > edges[b].limit - edges[b].bandwidth[tick];});
+    struct Chain {
+        Edge *edge;
+        vector<pair<Link*, Link*>> paths;
+
+        Chain(Edge *edge, Link *link1, Link *link2) {
+            this->edge = edge;
+            this->paths.emplace_back(make_pair(link1, link2));
+        }
+    };
+    for (auto it = frees.begin(); it != frees.end(); it++) {
+        vector<Chain> chains;
+        for (int l1 = 0; l1 < edges[*it].linkNum; l1++) {
+            Link *link1 = edges[*it].links[l1];
+            Customer *cmr = link1->cmr;
+            for (int l2 = 0; l2 < cmr->linkNum; l2++) {
+                Link *link2 = cmr->links[l2];
+                Edge *edge = link2->edge;
+                if (edge->isFree[tick]) continue;
+                bool flag = false;
+                for (auto cit = chains.begin(); cit != chains.end(); cit++) {
+                    if (cit->edge == edge) {
+                        flag = true;
+                        cit->paths.emplace_back(make_pair(link1, link2));
+                        break;
+                    }
+                }
+                if (!flag) {
+                    chains.emplace_back(Chain(edge, link1, link2));
+                }
+            }
+        }
+
+        sort(chains.begin(), chains.end(), [&tick](Chain &a, Chain &b){return a.edge->bandwidth[tick] > b.edge->bandwidth[tick];});
+        int *bandwidthLeft = new int[chains.size()];
+        for (int c = 0; c < chains.size(); c++) {
+            sort(chains[c].paths.begin(), chains[c].paths.end(), [&tick](pair<Link*, Link*> &a, pair<Link*, Link*> &b){return a.second->bandwidth[tick] > b.second->bandwidth[tick];});
+            int target;
+            if (c+1 >= chains.size()) target = 0;
+            else target = chains[c].edge->bandwidth[tick];
+            bandwidthLeft[c] = 0;
+            for (int l = 0; l < chains[c].edge->linkNum; l++) bandwidthLeft[c] += chains[c].edge->links[l]->bandwidth[tick];
+            
+            int cnt = c + 1;
+            bool isRunUp = false;
+            while (cnt) {
+                int minLeft = 2147483647;
+                int targetNeed = -1;
+                cnt = c + 1;
+                for (int e = 0; e <= c; e++) {
+                    if (bandwidthLeft[e] > 0) {
+                        minLeft = min(minLeft, bandwidthLeft[e]);
+                        if (targetNeed == -1) targetNeed = chains[e].edge->bandwidth[tick] - target;
+                    } else {
+                        cnt--;
+                    }
+                }
+
+                if (cnt < 1) break;
+                int bandwidthGiven = min(minLeft, targetNeed);
+                if (edges[*it].limit - edges[*it].bandwidth[tick] <= bandwidthGiven * cnt) {
+                    bandwidthGiven = (edges[*it].limit - edges[*it].bandwidth[tick]) / cnt;
+                    isRunUp = true;
+                }
+                edges[*it].bandwidth[tick] += bandwidthGiven * cnt;
+                for (int e = 0; e <= c; e++) {
+                    if (bandwidthLeft[e] > 0) {
+                        bandwidthLeft[e] -= bandwidthGiven;
+                        chains[e].edge->bandwidth[tick] -= bandwidthGiven;
+                        int bandwidthGivenLeft = bandwidthGiven;
+                        auto p = chains[e].paths.begin();
+                        while (bandwidthGivenLeft && p != chains[e].paths.end()) {
+                            int pathGiven = min(bandwidthGivenLeft, p->second->bandwidth[tick]);
+                            p->first->bandwidth[tick] += pathGiven;
+                            p->second->bandwidth[tick] -= pathGiven;
+                            bandwidthGivenLeft -= pathGiven;
+                            p++;
+                        }
+                    }
+                }
+                if (isRunUp || targetNeed <= minLeft) break;
+            }
+            if (isRunUp) break;
+        }
+        delete bandwidthLeft;
+    }
+}
+
+void secondStep() {
+    for (int t = 0; t < tickNum; t++) secondStepWhen(t);
+}
+
 int main() {
     testIO();
-
+    firstStep();
+    secondStep();
+    Output();
     return 0;
 }
->>>>>>> 0f7bf0b14439eb97095c28bd5690be053b0fc649

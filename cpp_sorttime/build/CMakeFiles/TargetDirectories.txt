@@ -1,0 +1,3 @@
+/home/raven/HuaweiCodeCraft2022/cpp_sorttime/build/CMakeFiles/rebuild_cache.dir
+/home/raven/HuaweiCodeCraft2022/cpp_sorttime/build/CMakeFiles/edit_cache.dir
+/home/raven/HuaweiCodeCraft2022/cpp_sorttime/build/CMakeFiles/CodeCraft-2022.dir
