@@ -37,6 +37,7 @@ struct Edge {
     int linkNum; // 相连的链路数量
     Link *links[CMR_MAX]; // 相连的链路的指针
     int bandwidth[TICK_MAX] = {}; // 每时刻分配的总带宽
+    bool isFree[TICK_MAX] = {}; // 每时刻分配的带宽是否可视为能无代价分完
 };
 
 // 链路结构体
@@ -131,7 +132,7 @@ void readData(){
         tmp_vec = split(tmp_line, ",");
         for (int i = 1; i <= cmrNum; i++) {
             int qos = stoi(tmp_vec[i]);
-            if (qos <= QOS_LIMIT) {
+            if (qos < QOS_LIMIT) {
                 Link *link = new Link();
                 link->cmr = cmrs + i - 1;
                 link->edge = edges + pt;
@@ -199,7 +200,7 @@ void firstStep() {
         bool flag = false;
         for (int *p = edgeLimitDsPt; p != edgeLimitDs + edgeNum; p++) {
             if (fullCnt[*p] < fullNum && edges[*p].limit <= demand) {
-                edges[*p].bandwidth[*tickDemandDsPt] = edges[*p].limit;
+                edges[*p].isFree[*tickDemandDsPt] = true;
                 tickDemands[*tickDemandDsPt] -= edges[*p].limit;
                 fullCnt[*p]++;
                 flag = true;
@@ -212,54 +213,71 @@ void firstStep() {
 }
 
 void secondStepWhen(int tick) {
-    bool isFree[EDGE_MAX] = {}; // 记录该时刻某一边缘节点是否为免费用满的
     vector<int> frees; // 免费边缘节点向量
-    
-    // 第一步，用非免费边缘节点尽量填满所有客户
+    Customer *cmrLinkNumAs[CMR_MAX]; // 客户节点指针数组，按照客户可连接的边缘节点数量排序
+    // 用边缘节点填满全部客户节点
     for (int j = 0; j < edgeNum; j++) {
-        if (edges[j].bandwidth[tick] == edges[j].limit) {
-            isFree[j] = true;
-            frees.emplace_back(j);
-            edges[j].bandwidth[tick] = 0;
-            continue;
-        }
-        for (int l = 0; l < edges[j].linkNum; l++) {
-            Customer *cmr = edges[j].links[l]->cmr;
-            if (cmr->demand[tick] == 0) continue;
-            if (cmr->demand[tick] < edges[j].limit - edges[j].bandwidth[tick]) {
-                edges[j].links[l]->bandwidth[tick] = cmr->demand[tick];
-                edges[j].bandwidth[tick] += cmr->demand[tick];
+        if (edges[j].isFree[tick]) frees.emplace_back(j);
+    }
+    for (int c = 0; c < cmrNum; c++) cmrLinkNumAs[c] = cmrs + c;
+    sort(cmrLinkNumAs, cmrLinkNumAs+cmrNum, [](Customer *a, Customer *b){return a->linkNum < b->linkNum;});
+
+    for (int cp = 0; cp < cmrNum; cp++) {
+        Customer *cmr = cmrLinkNumAs[cp];
+        for (int l = 0; l < cmr->linkNum && cmr->demand[tick] > 0; l++) {
+            Edge *edge = cmr->links[l]->edge;
+            int edgeBandwidthLeft = edge->limit - edge->bandwidth[tick];
+            if (edgeBandwidthLeft >= cmr->demand[tick]) {
+                cmr->links[l]->bandwidth[tick] = cmr->demand[tick];
+                edge->bandwidth[tick] += cmr->demand[tick];
                 cmr->demand[tick] = 0;
             } else {
-                edges[j].links[l]->bandwidth[tick] = edges[j].limit - edges[j].bandwidth[tick];
-                cmr->demand[tick] -= edges[j].limit - edges[j].bandwidth[tick];
-                edges->bandwidth[tick] = edges[j].limit;
-                break;
+                cmr->links[l]->bandwidth[tick] = edgeBandwidthLeft;
+                edge->bandwidth[tick] = edge->limit;
+                cmr->demand[tick] -= edgeBandwidthLeft;
             }
         }
     }
 
-    // 第二步，用免费边缘节点填满未满足客户
-    sort(frees.begin(), frees.end(), [](int &a, int &b){return edges[a].limit > edges[b].limit;});
-    for (auto it = frees.begin(); it != frees.end(); it++) {
-        int j = *it;
-        for (int l = 0; l < edges[j].linkNum; l++) {
-            Customer *cmr = edges[j].links[l]->cmr;
-            if (cmr->demand[tick] == 0) continue;
-            if (cmr->demand[tick] < edges[j].limit - edges[j].bandwidth[tick]) {
-                edges[j].links[l]->bandwidth[tick] = cmr->demand[tick];
-                edges[j].bandwidth[tick] += cmr->demand[tick];
-                cmr->demand[tick] = 0;
-            } else {
-                edges[j].links[l]->bandwidth[tick] = edges[j].limit - edges[j].bandwidth[tick];
-                cmr->demand[tick] -= edges[j].limit - edges[j].bandwidth[tick];
-                edges->bandwidth[tick] = edges[j].limit;
-                break;
-            }
-        }
-    }
+    // for (int j = 0; j < edgeNum; j++) {
+    //     if (edges[j].isFree[tick]) frees.emplace_back(j);
+    //     for (int l = 0; l < edges[j].linkNum; l++) {
+    //         Customer *cmr = edges[j].links[l]->cmr;
+    //         if (cmr->demand[tick] == 0) continue;
+    //         if (cmr->demand[tick] < edges[j].limit - edges[j].bandwidth[tick]) {
+    //             edges[j].links[l]->bandwidth[tick] = cmr->demand[tick];
+    //             edges[j].bandwidth[tick] += cmr->demand[tick];
+    //             cmr->demand[tick] = 0;
+    //         } else {
+    //             edges[j].links[l]->bandwidth[tick] = edges[j].limit - edges[j].bandwidth[tick];
+    //             cmr->demand[tick] -= edges[j].limit - edges[j].bandwidth[tick];
+    //             edges->bandwidth[tick] = edges[j].limit;
+    //             break;
+    //         }
+    //     }
+    // }
 
-    // 第三步，用免费边缘节点剩余带宽分担非免费边缘节点的带宽
+    // // 第二步，用免费边缘节点填满未满足客户
+    // sort(frees.begin(), frees.end(), [](int &a, int &b){return edges[a].limit > edges[b].limit;});
+    // for (auto it = frees.begin(); it != frees.end(); it++) {
+    //     int j = *it;
+    //     for (int l = 0; l < edges[j].linkNum; l++) {
+    //         Customer *cmr = edges[j].links[l]->cmr;
+    //         if (cmr->demand[tick] == 0) continue;
+    //         if (cmr->demand[tick] < edges[j].limit - edges[j].bandwidth[tick]) {
+    //             edges[j].links[l]->bandwidth[tick] = cmr->demand[tick];
+    //             edges[j].bandwidth[tick] += cmr->demand[tick];
+    //             cmr->demand[tick] = 0;
+    //         } else {
+    //             edges[j].links[l]->bandwidth[tick] = edges[j].limit - edges[j].bandwidth[tick];
+    //             cmr->demand[tick] -= edges[j].limit - edges[j].bandwidth[tick];
+    //             edges->bandwidth[tick] = edges[j].limit;
+    //             break;
+    //         }
+    //     }
+    // }
+
+    // 用免费边缘节点剩余带宽分担非免费边缘节点的带宽
     sort(frees.begin(), frees.end(), [&tick](int &a, int &b){return edges[a].limit - edges[a].bandwidth[tick] > edges[b].limit - edges[b].bandwidth[tick];});
     struct Chain {
         Edge *edge;
@@ -278,7 +296,7 @@ void secondStepWhen(int tick) {
             for (int l2 = 0; l2 < cmr->linkNum; l2++) {
                 Link *link2 = cmr->links[l2];
                 Edge *edge = link2->edge;
-                if (edge->bandwidth[tick] == 0) continue;
+                if (edge->isFree[tick]) continue;
                 bool flag = false;
                 for (auto cit = chains.begin(); cit != chains.end(); cit++) {
                     if (cit->edge == edge) {
@@ -294,15 +312,15 @@ void secondStepWhen(int tick) {
         }
 
         sort(chains.begin(), chains.end(), [&tick](Chain &a, Chain &b){return a.edge->bandwidth[tick] > b.edge->bandwidth[tick];});
+        int *bandwidthLeft = new int[chains.size()];
         for (int c = 0; c < chains.size(); c++) {
             sort(chains[c].paths.begin(), chains[c].paths.end(), [&tick](pair<Link*, Link*> &a, pair<Link*, Link*> &b){return a.second->bandwidth[tick] > b.second->bandwidth[tick];});
             int target;
-            int *bandwidthLeft = new int[chains.size()];
             if (c+1 >= chains.size()) target = 0;
             else target = chains[c].edge->bandwidth[tick];
             bandwidthLeft[c] = 0;
-            for (int l = 0; l < chains[c].edge->linkNum; l++) bandwidthLeft += chains[c].edge->links[l]->bandwidth[tick];
-
+            for (int l = 0; l < chains[c].edge->linkNum; l++) bandwidthLeft[c] += chains[c].edge->links[l]->bandwidth[tick];
+            
             int cnt = c + 1;
             bool isRunUp = false;
             while (cnt) {
@@ -317,6 +335,7 @@ void secondStepWhen(int tick) {
                         cnt--;
                     }
                 }
+
                 if (cnt < 1) break;
                 int bandwidthGiven = min(minLeft, targetNeed);
                 if (edges[*it].limit - edges[*it].bandwidth[tick] <= bandwidthGiven * cnt) {
@@ -330,7 +349,7 @@ void secondStepWhen(int tick) {
                         chains[e].edge->bandwidth[tick] -= bandwidthGiven;
                         int bandwidthGivenLeft = bandwidthGiven;
                         auto p = chains[e].paths.begin();
-                        while (bandwidthGivenLeft) {
+                        while (bandwidthGivenLeft && p != chains[e].paths.end()) {
                             int pathGiven = min(bandwidthGivenLeft, p->second->bandwidth[tick]);
                             p->first->bandwidth[tick] += pathGiven;
                             p->second->bandwidth[tick] -= pathGiven;
@@ -343,7 +362,7 @@ void secondStepWhen(int tick) {
             }
             if (isRunUp) break;
         }
-        
+        delete bandwidthLeft;
     }
 }
 

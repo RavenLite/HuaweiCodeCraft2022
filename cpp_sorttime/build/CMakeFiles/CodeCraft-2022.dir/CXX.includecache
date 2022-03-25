@@ -1,0 +1,24 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/raven/HuaweiCodeCraft2022/cpp_sorttime/CodeCraft-2022/src/CodeCraft-2022.cpp
+iostream
+-
+fstream
+-
+vector
+-
+iterator
+-
+string
+-
+algorithm
+-
+queue
+-
+
