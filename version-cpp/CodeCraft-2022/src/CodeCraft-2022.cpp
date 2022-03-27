@@ -25,6 +25,7 @@ struct Link;
 // 客户节点结构体
 struct Customer {
     string id;
+    int num;
     int demand[TICK_MAX]; // 每时刻的剩余带宽需求
     int linkNum; // 相连的链路数量
     Link *links[EDGE_MAX]; // 相连的链路的指针
@@ -33,6 +34,7 @@ struct Customer {
 // 边缘节点结构体
 struct Edge {
     string id;
+    int num;
     int limit; // 带宽上限
     int linkNum; // 相连的链路数量
     Link *links[CMR_MAX]; // 相连的链路的指针
@@ -50,6 +52,8 @@ struct Link {
 
 Customer cmrs[CMR_MAX];
 Edge edges[EDGE_MAX];
+bool cmrFlag[CMR_MAX] = {};
+bool edgeFlag[EDGE_MAX] = {};
 int cmrNum; // 客户节点数
 int edgeNum; // 边缘节点数
 int tickNum; // 总时刻数
@@ -106,6 +110,7 @@ void readData(){
         tmp_vec = split(tmp_line, ",");
         for (int i = 1; i <= cmrNum; i++) {
             cmrs[i-1].demand[tickNum] = stoi(tmp_vec[i]);
+            cmrs[i-1].num = i-1;
         }
         tickNum++;
     }
@@ -120,6 +125,7 @@ void readData(){
         tmp_vec = split(tmp_line, ",");
         edges[edgeNum].id = tmp_vec[0];
         edges[edgeNum].linkNum = 0;
+        edges[edgeNum].num = edgeNum;
         edges[edgeNum++].limit = stoi(tmp_vec[1]);
     }
     data.close();
@@ -212,6 +218,35 @@ void firstStep() {
     }
 }
 
+int adjustBnadwidth(int num, bool isEdge, int tick, int need, int depth, int depthMax) {
+    if (depth > depthMax || isEdge && edgeFlag[num] || !isEdge && cmrFlag[num]) return 0;
+    int bandwidthPassed = 0;
+    if (!isEdge) {
+        cmrFlag[num] = true;
+        for (int l = 0; l < cmrs[num].linkNum; l++) {
+            int bandwidthGot = adjustBnadwidth(cmrs[num].links[l]->edge->num, true, tick, need-bandwidthPassed+cmrs[num].demand[tick], depth+1, depthMax);
+            int bandwidthKept = min(cmrs[num].demand[tick], bandwidthGot);
+            cmrs[num].links[l]->bandwidth[tick] += bandwidthKept;
+            cmrs[num].demand[tick] -= bandwidthKept;
+            bandwidthPassed += max(0, bandwidthGot-bandwidthKept);
+            if (bandwidthPassed >= need) return bandwidthPassed;
+        }
+    } else {
+        edgeFlag[num] = true;
+        int bandwidthGiven = min(need, edges[num].limit - edges[num].bandwidth[tick]);
+        bandwidthPassed += bandwidthGiven;
+        edges[num].bandwidth[tick] += bandwidthGiven;
+        if (bandwidthPassed >= need) return bandwidthPassed;
+        for (int l = 0; l < edges[num].linkNum; l++) {
+            int bandwidthGot = adjustBnadwidth(edges[num].links[l]->cmr->num, false, tick, need-bandwidthPassed, depth+1, depthMax);
+            edges[num].links[l]->bandwidth[tick] -= bandwidthGot;
+            bandwidthPassed += bandwidthGot;
+            if (bandwidthPassed >= need) return bandwidthPassed;
+        }
+    }
+    return bandwidthPassed;
+}
+
 void secondStepWhen(int tick) {
     vector<int> frees; // 免费边缘节点向量
     Customer *cmrLinkNumAs[CMR_MAX]; // 客户节点指针数组，按照客户可连接的边缘节点数量排序
@@ -236,6 +271,14 @@ void secondStepWhen(int tick) {
                 edge->bandwidth[tick] = edge->limit;
                 cmr->demand[tick] -= edgeBandwidthLeft;
             }
+        }
+    }
+
+    for (int c = 0; c > cmrNum; c++) {
+        for (int dm = 3; cmrs[c].demand[tick] > 0; dm += 2) {
+            for (int cp = 0; cp < cmrNum; cp++) cmrFlag[cp] = false;
+            for (int ep = 0; ep < edgeNum; ep++) edgeFlag[ep] = false;
+            adjustBnadwidth(c, false, tick, cmrs[c].demand[tick], 0, dm);
         }
     }
 

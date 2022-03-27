@@ -2,7 +2,7 @@
 # logging.basicConfig(format='%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s', level=logging.INFO)
 
 """
-This is the algorithm implement of Huawei CodeCraft 2022 contest, a edge-node bandwidth scheduling algorithm.
+This is the algorithm implement of Huawei CodeCraft 2022 contest, an edge-node bandwidth scheduling algorithm.
 Contest homepage: https://competition.huaweicloud.com/codecraft2022
 Remote repository: https://github.com/RavenLite/HuaweiCodeCraft2022
 
@@ -14,6 +14,12 @@ Python: Python3.7.3
 PyPy: pypy3.7-v7.3.7
 numpy: 1.19.4
 """
+
+PARAM = {
+    "MEET_LEFT_RATIO": 0.65,
+    "BACKEND_BANDWIDTH_THRESHOLD": 0.9,
+    "BACKEND_ITERATION_TIMES": 150,
+}
 
 
 class DataPool:
@@ -196,7 +202,6 @@ class Scheduler:
 
         self.timeIndex_edge_demand_list = sorted(self.timeIndex_edge_demand_list, key=lambda tuple: tuple[2],
                                                  reverse=True)
-        # logging.info("[Scheduling] timeIndex_edge_demand_list(%s) has %d elements, the first one is %s", type(self.timeIndex_edge_demand_list), len(self.timeIndex_edge_demand_list), self.timeIndex_edge_demand_list[0])
 
     def sort_demand_by_user_timestamp(self):
         for timeIndex in list(self.demandPool.timeIndex_edge_left_map.keys()):
@@ -281,7 +286,7 @@ class Scheduler:
                                 self.demandPool.timeIndex_edge_left_map[timeIndex][edge] = 0
                                 self.demandPool.timeIndex_user_left_map[timeIndex][user] -= meetnum
                             else:
-                                meetnum = int(self.demandPool.timeIndex_user_left_map[timeIndex][user] * 0.6)
+                                meetnum = int(self.demandPool.timeIndex_user_left_map[timeIndex][user] * PARAM["MEET_LEFT_RATIO"])
                                 if meetnum == 0:
                                     meetnum = self.demandPool.timeIndex_user_left_map[timeIndex][user]
                                 self.demandPool.timeIndex_edge_left_map[timeIndex][edge] -= meetnum
@@ -304,7 +309,7 @@ class Scheduler:
         edge_bandwidth_list_map = {}
         self.edge_95th_bandwidth_map = {}
         self.edge_95th_timestamp_map = {}
-        # TODO: manage in one place
+        
         timeIndex_list = list(self.demandPool.timeIndex_edge_left_map.keys())
         timestamp_count = len(timeIndex_list)
         for timeIndex in timeIndex_list:
@@ -350,9 +355,8 @@ class Scheduler:
                             continue
                         # select the edge with enough space
                         edge_bandwidth_timestamp = self.dataPool.edge_bandwidth_map[edge] - self.demandPool.timeIndex_edge_left_map[timeIndex][edge]
-                        # if (edge_bandwidth_timestamp + bandwidth_swap) < self.edge_95th_bandwidth_map[edge] * 0.9 and \
-                                # self.demandPool.timeIndex_edge_left_map[timeIndex][edge] > bandwidth_swap:
-                        if (edge_bandwidth_timestamp > self.edge_95th_bandwidth_map[edge]) and (self.demandPool.timeIndex_edge_left_map[timeIndex][edge] > bandwidth_swap):
+                        if (edge_bandwidth_timestamp + bandwidth_swap) < self.edge_95th_bandwidth_map[edge] * PARAM["BACKEND_BANDWIDTH_THRESHOLD"] and \
+                                self.demandPool.timeIndex_edge_left_map[timeIndex][edge] > bandwidth_swap:
                             could_swap = True
                             edge_swaped = edge
                             break
@@ -369,7 +373,6 @@ class Scheduler:
                             temp_list[1] += bandwidth_swap
                             self.res[timeIndex][user][index] = tuple(temp_list)
                             self.demandPool.timeIndex_edge_left_map[timeIndex][edge_swaped] -= bandwidth_swap
-                    # self.cal_95th_map()
 
     def output(self):
         with open("/output/solution.txt", mode="w", encoding="utf-8") as f:
@@ -398,8 +401,8 @@ class Scheduler:
         # phase 2
         self.meet_demand_left()
         # phase 3
-        # for index in range(10):
-        self.optimize_backend()
+        for index in range(PARAM["BACKEND_ITERATION_TIMES"]):
+            self.optimize_backend()
         # output
         self.output()
 
