@@ -281,7 +281,7 @@ class Scheduler:
                                 self.demandPool.timeIndex_edge_left_map[timeIndex][edge] = 0
                                 self.demandPool.timeIndex_user_left_map[timeIndex][user] -= meetnum
                             else:
-                                meetnum = int(self.demandPool.timeIndex_user_left_map[timeIndex][user] * 0.5)
+                                meetnum = int(self.demandPool.timeIndex_user_left_map[timeIndex][user] * 0.6)
                                 if meetnum == 0:
                                     meetnum = self.demandPool.timeIndex_user_left_map[timeIndex][user]
                                 self.demandPool.timeIndex_edge_left_map[timeIndex][edge] -= meetnum
@@ -306,6 +306,7 @@ class Scheduler:
         self.edge_95th_timestamp_map = {}
         # TODO: manage in one place
         timeIndex_list = list(self.demandPool.timeIndex_edge_left_map.keys())
+        timestamp_count = len(timeIndex_list)
         for timeIndex in timeIndex_list:
             for edge in self.demandPool.timeIndex_edge_left_map[timeIndex]:
                 if edge not in edge_bandwidth_list_map:
@@ -316,9 +317,9 @@ class Scheduler:
 
         for edge in list(edge_bandwidth_list_map.keys()):
             edge_bandwidth_list_map[edge] = sorted(edge_bandwidth_list_map[edge], key=lambda tuple: tuple[0],
-                                                   reverse=True)
-            self.edge_95th_bandwidth_map[edge] = edge_bandwidth_list_map[edge][self.dataPool.free_count][0]
-            self.edge_95th_timestamp_map[edge] = edge_bandwidth_list_map[edge][self.dataPool.free_count][1]
+                                                   reverse=False)
+            self.edge_95th_bandwidth_map[edge] = edge_bandwidth_list_map[edge][int(timestamp_count * 0.95 + 0.5) - 1][0]
+            self.edge_95th_timestamp_map[edge] = edge_bandwidth_list_map[edge][int(timestamp_count * 0.95 + 0.5) - 1][1]
 
     def optimize_backend(self):
         self.cal_95th_map()
@@ -337,7 +338,7 @@ class Scheduler:
                     if self.edge_95th_timestamp_map[edge] == timeIndex:
                         need_swap = True
                         edge_swap = edge
-                        bandwidth_swap = int(meetnum * 0.025)
+                        bandwidth_swap = int(meetnum * 1)
                         break
 
                 if need_swap:
@@ -348,17 +349,15 @@ class Scheduler:
                         if edge == edge_swap:
                             continue
                         # select the edge with enough space
-                        if (meetnum + bandwidth_swap) < self.edge_95th_bandwidth_map[edge] * 0.95 and \
-                                self.demandPool.timeIndex_edge_left_map[timeIndex][edge] > bandwidth_swap:
+                        edge_bandwidth_timestamp = self.dataPool.edge_bandwidth_map[edge] - self.demandPool.timeIndex_edge_left_map[timeIndex][edge]
+                        # if (edge_bandwidth_timestamp + bandwidth_swap) < self.edge_95th_bandwidth_map[edge] * 0.9 and \
+                                # self.demandPool.timeIndex_edge_left_map[timeIndex][edge] > bandwidth_swap:
+                        if (edge_bandwidth_timestamp > self.edge_95th_bandwidth_map[edge]) and (self.demandPool.timeIndex_edge_left_map[timeIndex][edge] > bandwidth_swap):
                             could_swap = True
                             edge_swaped = edge
                             break
 
                 if could_swap:
-                    # print("时刻: ", timeIndex, " 交换前分配情况: ",  self.res[timeIndex][user])
-                    # print(timeIndex, ": ", edge_swap, edge_swaped)
-                    # print(edge_swap, "'95th is at ", self.edge_95th_timestamp_map[edge_swap], " with value is ", self.edge_95th_bandwidth_map[edge_swap])
-                    # print(edge_swaped, "'95th is at ", self.edge_95th_timestamp_map[edge_swaped], " with value is ", self.edge_95th_bandwidth_map[edge_swaped])
                     for index, edge_meetnum in enumerate(self.res[timeIndex][user]):
                         if self.res[timeIndex][user][index][0] == edge_swap:
                             temp_list = list(edge_meetnum)
@@ -370,11 +369,7 @@ class Scheduler:
                             temp_list[1] += bandwidth_swap
                             self.res[timeIndex][user][index] = tuple(temp_list)
                             self.demandPool.timeIndex_edge_left_map[timeIndex][edge_swaped] -= bandwidth_swap
-                    self.cal_95th_map()
-                    # print("时刻: ", timeIndex, " 交换后分配情况: ",  self.res[timeIndex][user])
-                    # print(edge_swap, "'95th is at ", self.edge_95th_timestamp_map[edge_swap], " with value is ", self.edge_95th_bandwidth_map[edge_swap])
-                    # print(edge_swaped, "'95th is at ", self.edge_95th_timestamp_map[edge_swaped], " with value is ", self.edge_95th_bandwidth_map[edge_swaped])
-                    # print("\n")
+                    # self.cal_95th_map()
 
     def output(self):
         with open("/output/solution.txt", mode="w", encoding="utf-8") as f:
@@ -404,7 +399,7 @@ class Scheduler:
         self.meet_demand_left()
         # phase 3
         # for index in range(10):
-        # self.optimize_backend()
+        self.optimize_backend()
         # output
         self.output()
 

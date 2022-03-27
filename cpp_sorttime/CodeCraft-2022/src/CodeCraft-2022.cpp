@@ -95,8 +95,8 @@ void readData(){
 
     data.open(DATA_PATH+"demand.csv");//客户节点在不同时刻的带宽需求信息
     getline(data, tmp_line);
-    tmp_vec = split(tmp_line, ",");
-    cmrNum = tmp_vec.size() - 1;
+    tmp_vec = split(tmp_line, ",\n\r");
+    cmrNum = tmp_vec.size() - 2;
     for (int i = 1; i <= cmrNum; i++) {
         cmrs[i-1].id = tmp_vec[i];
         cmrs[i-1].linkNum = 0;
